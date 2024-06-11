@@ -19,8 +19,8 @@ def train(epoch):
     model.train()
     for batch_index, (images, labels) in enumerate(cifar100_training_loader):
 
-        images.to(device)
-        labels.to(device)
+        images = images.to(device)
+        labels = labels.to(device)
 
         optimizer.zero_grad()
         outputs = model(images)
@@ -41,14 +41,14 @@ def train(epoch):
             loss.item(),
             optimizer.param_groups[0]['lr'],
             epoch=epoch,
-            trained_samples=batch_index * args.b + len(images),
+            trained_samples=batch_index * args.batch_size + len(images),
             total_samples=len(cifar100_training_loader.dataset)
         ))
 
         #update training loss for each iteration
         writer.add_scalar('Train/loss', loss.item(), n_iter)
 
-        if epoch <= args.warm:
+        if epoch <= args.warmup:
             warmup_scheduler.step()
 
     for name, param in model.named_parameters():
@@ -73,8 +73,8 @@ def eval_training(epoch=0, tb=True):
     for (images, labels) in cifar100_test_loader:
 
         # load to device
-        images.to(device)
-        labels.to(device)
+        images = images.to(device)
+        labels = labels.to(device)
 
         # evaluate the model
         outputs = model(images)
@@ -85,10 +85,9 @@ def eval_training(epoch=0, tb=True):
         correct += preds.eq(labels).sum()
 
     finish = time.time()
-    # TODO:
-    # if args.gpu:
-    #     print('GPU INFO.....')
-    #     print(torch.cuda.memory_summary(), end='')
+    if use_gpu:
+        print('GPU INFO.....')
+        print(torch.cuda.memory_summary(), end='')
     print('Evaluating Network.....')
     print('Test set: Epoch: {}, Average loss: {:.4f}, Accuracy: {:.4f}, Time consumed:{:.2f}s'.format(
         epoch,
@@ -140,10 +139,11 @@ if __name__ == '__main__':
     # load the model
     model = get_model(args.arch)
 
-    if not torch.cuda.is_available():
+    use_gpu = torch.cuda.is_available()
+    if not use_gpu:
         print("WARNING: CUDA not available, using CPU instead")
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model.to(device)
+    device = torch.device("cuda" if use_gpu else "cpu")
+    model = model.to(device)
 
     # data preprocessing
     cifar100_training_loader = get_training_dataloader(
@@ -166,22 +166,22 @@ if __name__ == '__main__':
     # sgd with momentum
     optimizer = optim.SGD(
         model.parameters(),
-        lr=args.learning_rate,
+        lr=args.lr,
         momentum=args.momentum,
-        weight_decay=args.weight_decay)
+        weight_decay=args.wd)
 
-    scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=config.MILESTONES, gamma=0.2)
+    scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=config.MILESTONES, gamma=args.lg)
 
     iter_per_epoch = len(cifar100_training_loader)
-    warmup_scheduler = WarmUpLR(optimizer, iter_per_epoch * args.warm)
+    warmup_scheduler = WarmUpLR(optimizer, iter_per_epoch * args.warmup)
 
     if args.name is None:
         checkpoint_path = str(os.path.join(config.CHECKPOINT_DIR, args.arch, config.TIME_NOW))
-        writer = SummaryWriter(log_dir=str(os.path.join(config.LOG_DIR, args.net, config.TIME_NOW)))
+        writer = SummaryWriter(log_dir=str(os.path.join(config.LOG_DIR, args.arch, config.TIME_NOW)))
 
     else:
         checkpoint_path = str(os.path.join(config.CHECKPOINT_DIR, args.arch, args.name))
-        writer = SummaryWriter(log_dir=str(os.path.join(config.LOG_DIR, args.net, args.name)))
+        writer = SummaryWriter(log_dir=str(os.path.join(config.LOG_DIR, args.arch, args.name)))
 
     # create a new tensorboard log file
     input_tensor = torch.Tensor(1, 3, 32, 32).to(device)
@@ -190,7 +190,7 @@ if __name__ == '__main__':
     # create checkpoint folder to save model
     if not os.path.exists(checkpoint_path):
         os.makedirs(checkpoint_path)
-    checkpoint_path = str(os.path.join(checkpoint_path, '{net}-{epoch}-{type}.pth'))
+    checkpoint_path = str(os.path.join(checkpoint_path, '{arch}-{epoch}-{type}.pth'))
 
     best_acc = 0.0
 
@@ -217,7 +217,7 @@ if __name__ == '__main__':
 
     # start training
     for epoch in range(1, config.EPOCH + 1):
-        if epoch > args.warm:
+        if epoch > args.warmup:
             scheduler.step(epoch)
 
         if args.resume:
@@ -229,14 +229,14 @@ if __name__ == '__main__':
 
         # start to save the best performing model after learning rate decays to 0.01
         if epoch > config.MILESTONES[1] and best_acc < acc:
-            weights_path = checkpoint_path.format(net=args.net, epoch=epoch, type='best')
+            weights_path = checkpoint_path.format(arch=args.arch, epoch=epoch, type='best')
             print('saving weights file to {}'.format(weights_path))
             torch.save(model.state_dict(), weights_path)
             best_acc = acc
             continue
 
         if not epoch % config.SAVE_EPOCH:
-            weights_path = checkpoint_path.format(net=args.net, epoch=epoch, type='regular')
+            weights_path = checkpoint_path.format(arch=args.arch, epoch=epoch, type='regular')
             print('saving weights file to {}'.format(weights_path))
             torch.save(model.state_dict(), weights_path)
 

@@ -1,5 +1,13 @@
 .idea/
 
+checkpoint/*
+!checkpoint/.gitkeep
+data/*
+!data/.gitkeep
+logs/*
+!logs/.gitkeep
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
