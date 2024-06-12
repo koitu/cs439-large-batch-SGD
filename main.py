@@ -9,8 +9,15 @@ import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
 
 import config
-from utils import get_model, get_training_dataloader, get_test_dataloader, WarmUpLR, \
-    most_recent_weights, last_epoch, best_acc_weights
+from models import get_model
+from utils import (
+    get_training_dataloader,
+    get_test_dataloader,
+    WarmUpLR,
+    most_recent_weights,
+    last_epoch,
+    best_acc_weights
+)
 
 
 def train(epoch):
@@ -126,7 +133,7 @@ if __name__ == '__main__':
     parser.add_argument('-m', '--momentum',
                         default=0.9, type=float, help='momentum (default: 0.9)')
     parser.add_argument('--wd', '--weight-decay',
-                        default=1e-4, type=float, help='weight decay (default: 1e-4)')
+                        default=5e-4, type=float, help='weight decay (default: 5e-4)')
     parser.add_argument('--seed',
                         default=None, type=int, help='seed for initializing training')
     parser.add_argument('-r', '--resume',

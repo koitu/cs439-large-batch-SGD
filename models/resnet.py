@@ -133,7 +133,6 @@ class ResNet(nn.Module):
         out = self.layer5(out)
 
         out = self.avg_pool(out)
-        # out = out.view(out.size()[0], -1)
         out = torch.flatten(out, 1)
         out = self.fc(out)
 
@@ -177,3 +176,6 @@ resnet_models = {
     'resnet101': resnet101,
     'resnet152': resnet152,
 }
+
+if __name__ == '__main__':
+    print(resnet18())

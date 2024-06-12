@@ -1,32 +1,13 @@
-""" helper function
-
-author baiyu
-"""
 import os
-import sys
 import re
-import datetime
 
 import numpy
 
-import torch
-from torch.optim.lr_scheduler import LRScheduler
 import torchvision
 import torchvision.transforms as transforms
+
+from torch.optim.lr_scheduler import LRScheduler
 from torch.utils.data import DataLoader
-
-from models import models
-
-
-def get_model(arch):
-    """ return given network
-    """
-    try:
-        return models[arch]()
-
-    except KeyError:
-        print('the network name you have entered is not supported')
-        sys.exit()
 
 
 def get_training_dataloader(mean, std, batch_size=16, num_workers=2, shuffle=True):
@@ -118,6 +99,7 @@ class WarmUpLR(LRScheduler):
         return [base_lr * self.last_epoch / (self.total_iters + 1e-8) for base_lr in self.base_lrs]
 
 
+# TODO: this does not work (remove)
 def most_recent_weights(weights_folder):
     """
         return most recent created weights file
@@ -135,6 +117,7 @@ def most_recent_weights(weights_folder):
     return weight_files[-1]
 
 
+# TODO: this does not work (remove)
 def last_epoch(weights_folder):
     weight_file = most_recent_weights(weights_folder)
     if not weight_file:

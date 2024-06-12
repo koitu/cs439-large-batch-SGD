@@ -37,7 +37,6 @@ class VGG(nn.Module):
 
     def forward(self, x):
         out = self.features(x)
-        # output = output.view(output.size()[0], -1)
         out = torch.flatten(out, 1)
         out = self.classifier(out)
 
