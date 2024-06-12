@@ -99,47 +99,47 @@ class WarmUpLR(LRScheduler):
         return [base_lr * self.last_epoch / (self.total_iters + 1e-8) for base_lr in self.base_lrs]
 
 
-# TODO: this does not work (remove)
-def most_recent_weights(weights_folder):
-    """
-        return most recent created weights file
-        if folder is empty return empty string
-    """
-    weight_files = os.listdir(weights_folder)
-    if len(weights_folder) == 0:
-        return ''
-
-    regex_str = r'([A-Za-z0-9]+)-([0-9]+)-(regular|best)'
-
-    # sort files by epoch
-    weight_files = sorted(weight_files, key=lambda w: int(re.search(regex_str, w).groups()[1]))
-
-    return weight_files[-1]
-
-
-# TODO: this does not work (remove)
-def last_epoch(weights_folder):
-    weight_file = most_recent_weights(weights_folder)
-    if not weight_file:
-       raise Exception('no recent weights were found')
-    resume_epoch = int(weight_file.split('-')[1])
-
-    return resume_epoch
-
-
-def best_acc_weights(weights_folder):
-    """
-        return the best acc .pth file in given folder, if no
-        best acc weights file were found, return empty string
-    """
-    files = os.listdir(weights_folder)
-    if len(files) == 0:
-        return ''
-
-    regex_str = r'([A-Za-z0-9]+)-([0-9]+)-(regular|best)'
-    best_files = [w for w in files if re.search(regex_str, w).groups()[2] == 'best']
-    if len(best_files) == 0:
-        return ''
-
-    best_files = sorted(best_files, key=lambda w: int(re.search(regex_str, w).groups()[1]))
-    return best_files[-1]
+# # TODO: this does not work (remove)
+# def most_recent_weights(weights_folder):
+#     """
+#         return most recent created weights file
+#         if folder is empty return empty string
+#     """
+#     weight_files = os.listdir(weights_folder)
+#     if len(weights_folder) == 0:
+#         return ''
+#
+#     regex_str = r'([A-Za-z0-9]+)-([0-9]+)-(regular|best)'
+#
+#     # sort files by epoch
+#     weight_files = sorted(weight_files, key=lambda w: int(re.search(regex_str, w).groups()[1]))
+#
+#     return weight_files[-1]
+#
+#
+# # TODO: this does not work (remove)
+# def last_epoch(weights_folder):
+#     weight_file = most_recent_weights(weights_folder)
+#     if not weight_file:
+#        raise Exception('no recent weights were found')
+#     resume_epoch = int(weight_file.split('-')[1])
+#
+#     return resume_epoch
+#
+#
+# def best_acc_weights(weights_folder):
+#     """
+#         return the best acc .pth file in given folder, if no
+#         best acc weights file were found, return empty string
+#     """
+#     files = os.listdir(weights_folder)
+#     if len(files) == 0:
+#         return ''
+#
+#     regex_str = r'([A-Za-z0-9]+)-([0-9]+)-(regular|best)'
+#     best_files = [w for w in files if re.search(regex_str, w).groups()[2] == 'best']
+#     if len(best_files) == 0:
+#         return ''
+#
+#     best_files = sorted(best_files, key=lambda w: int(re.search(regex_str, w).groups()[1]))
+#     return best_files[-1]

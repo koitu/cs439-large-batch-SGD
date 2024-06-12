@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 import argparse
 
@@ -14,9 +15,9 @@ from utils import (
     get_training_dataloader,
     get_test_dataloader,
     WarmUpLR,
-    most_recent_weights,
-    last_epoch,
-    best_acc_weights
+    # most_recent_weights,
+    # last_epoch,
+    # best_acc_weights,
 )
 
 
@@ -37,12 +38,13 @@ def train(epoch):
 
         n_iter = (epoch - 1) * len(cifar100_training_loader) + batch_index + 1
 
-        last_layer = list(model.children())[-1]
-        for name, para in last_layer.named_parameters():
-            if 'weight' in name:
-                writer.add_scalar('LastLayerGradients/grad_norm2_weights', para.grad.norm(), n_iter)
-            if 'bias' in name:
-                writer.add_scalar('LastLayerGradients/grad_norm2_bias', para.grad.norm(), n_iter)
+        # TODO: remove
+        # last_layer = list(model.children())[-1]
+        # for name, para in last_layer.named_parameters():
+        #     if 'weight' in name:
+        #         writer.add_scalar('LastLayerGradients/grad_norm2_weights', para.grad.norm(), n_iter)
+        #     if 'bias' in name:
+        #         writer.add_scalar('LastLayerGradients/grad_norm2_bias', para.grad.norm(), n_iter)
 
         print('Training Epoch: {epoch} [{trained_samples}/{total_samples}]\tLoss: {:0.4f}\tLR: {:0.6f}'.format(
             loss.item(),
@@ -52,7 +54,7 @@ def train(epoch):
             total_samples=len(cifar100_training_loader.dataset)
         ))
 
-        #update training loss for each iteration
+        # update training loss for each iteration
         writer.add_scalar('Train/loss', loss.item(), n_iter)
 
         if epoch <= args.warmup:
@@ -74,7 +76,7 @@ def eval_training(epoch=0, tb=True):
     start = time.time()
     model.eval()
 
-    test_loss = 0.0 # cost function error
+    test_loss = 0.0  # cost function error
     correct = 0.0
 
     for (images, labels) in cifar100_test_loader:
@@ -108,6 +110,7 @@ def eval_training(epoch=0, tb=True):
     if tb:
         writer.add_scalar('Test/Average loss', test_loss / len(cifar100_test_loader.dataset), epoch)
         writer.add_scalar('Test/Accuracy', correct.float() / len(cifar100_test_loader.dataset), epoch)
+        writer.add_scalar('Parameters/Learning Rate', optimizer.param_groups[0]['lr'], epoch)
 
     return correct.float() / len(cifar100_test_loader.dataset)
 
@@ -115,29 +118,29 @@ def eval_training(epoch=0, tb=True):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-a', '--arch',
-                        required=True, type=str, help='model architecture')
+                        default='resnet18', type=str, help='model architecture')
     parser.add_argument('-n', '--name',
                         default=None, type=str, help='name of the model')
     parser.add_argument('-j', '--workers',
                         default=4, type=int, help='number of data loading workers (default: 4)')
     parser.add_argument('-b', '--batch-size',
                         default=128, type=int, help='mini-batch size (default: 128)')
-    parser.add_argument('--lr', '--learning-rate',
-                        default=0.1, type=float, help='initial learning rate (default: 0.1)')
-    parser.add_argument('--lg', '--learning-gamma',
-                        default=0.2, type=float, help='learning rate decay (default: 0.2)')
-    parser.add_argument('-e', '--epochs',
-                        default=300, type=int, help='number of epochs to run (default: 300)')
+    # parser.add_argument('--lr', '--learning-rate',
+    #                     default=0.1, type=float, help='initial learning rate (default: 0.1)')
+    # parser.add_argument('--lg', '--learning-gamma',
+    #                     default=0.2, type=float, help='learning rate decay (default: 0.2)')
+    # parser.add_argument('-e', '--epochs',
+    #                     default=300, type=int, help='number of epochs to run (default: 300)')
     parser.add_argument('-w', '--warmup',
-                        default=0, type=int, help='warm up before training phase (default: 0)')
+                        default=5, type=int, help='warm up before training phase (default: 5)')
     parser.add_argument('-m', '--momentum',
                         default=0.9, type=float, help='momentum (default: 0.9)')
     parser.add_argument('--wd', '--weight-decay',
                         default=5e-4, type=float, help='weight decay (default: 5e-4)')
     parser.add_argument('--seed',
                         default=None, type=int, help='seed for initializing training')
-    parser.add_argument('-r', '--resume',
-                        action='store_true', default=False, help='resume training')
+    # parser.add_argument('-r', '--resume',
+    #                     action='store_true', default=False, help='resume training')
     args = parser.parse_args()
 
     if args.seed is not None:
@@ -173,18 +176,21 @@ if __name__ == '__main__':
     # sgd with momentum
     optimizer = optim.SGD(
         model.parameters(),
-        lr=args.lr,
+        lr=0.1 * (args.batch_size / 256),  # linear scaling rule
+        # nesterov=True,
         momentum=args.momentum,
         weight_decay=args.wd)
 
-    scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=config.MILESTONES, gamma=args.lg)
+    scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=config.MILESTONES, gamma=0.2)
+    # scheduler = optim.lr_scheduler.PolynomialLR(optimizer, total_iters=config.EPOCH, power=1.0)  # TODO: set total_iters to the number of epochs
 
     iter_per_epoch = len(cifar100_training_loader)
     warmup_scheduler = WarmUpLR(optimizer, iter_per_epoch * args.warmup)
 
     if args.name is None:
-        checkpoint_path = str(os.path.join(config.CHECKPOINT_DIR, args.arch, config.TIME_NOW))
-        writer = SummaryWriter(log_dir=str(os.path.join(config.LOG_DIR, args.arch, config.TIME_NOW)))
+        sys.exit(1)
+        # checkpoint_path = str(os.path.join(config.CHECKPOINT_DIR, args.arch, config.TIME_NOW))
+        # writer = SummaryWriter(log_dir=str(os.path.join(config.LOG_DIR, args.arch, config.TIME_NOW)))
 
     else:
         checkpoint_path = str(os.path.join(config.CHECKPOINT_DIR, args.arch, args.name))
@@ -202,34 +208,34 @@ if __name__ == '__main__':
     best_acc = 0.0
 
     # resume training from a checkpoint
-    if args.resume:
-        best_weights = best_acc_weights(checkpoint_path)
-
-        if best_weights:
-            weights_path = os.path.join(checkpoint_path, best_weights)
-            print(f'found best acc weights file:{weights_path}')
-            print('load best training file to test acc...')
-            model.load_state_dict(torch.load(weights_path))
-            best_acc = eval_training(tb=False)
-            print('best acc is {:0.2f}'.format(best_acc))
-
-        recent_weights_file = most_recent_weights(checkpoint_path)
-        if not recent_weights_file:
-            raise Exception('no recent weights file were found')
-        weights_path = os.path.join(checkpoint_path, recent_weights_file)
-        print('loading weights file {} to resume training.....'.format(weights_path))
-        model.load_state_dict(torch.load(weights_path))
-
-        resume_epoch = last_epoch(checkpoint_path)
+    # if args.resume:
+    #     best_weights = best_acc_weights(checkpoint_path)
+    #
+    #     if best_weights:
+    #         weights_path = os.path.join(checkpoint_path, best_weights)
+    #         print(f'found best acc weights file:{weights_path}')
+    #         print('load best training file to test acc...')
+    #         model.load_state_dict(torch.load(weights_path))
+    #         best_acc = eval_training(tb=False)
+    #         print('best acc is {:0.2f}'.format(best_acc))
+    #
+    #     recent_weights_file = most_recent_weights(checkpoint_path)
+    #     if not recent_weights_file:
+    #         raise Exception('no recent weights file were found')
+    #     weights_path = os.path.join(checkpoint_path, recent_weights_file)
+    #     print('loading weights file {} to resume training.....'.format(weights_path))
+    #     model.load_state_dict(torch.load(weights_path))
+    #
+    #     resume_epoch = last_epoch(checkpoint_path)
 
     # start training
     for epoch in range(1, config.EPOCH + 1):
         if epoch > args.warmup:
             scheduler.step(epoch)
 
-        if args.resume:
-            if epoch <= resume_epoch:
-                continue
+        # if args.resume:
+        #     if epoch <= resume_epoch:
+        #         continue
 
         train(epoch)
         acc = eval_training(epoch)
