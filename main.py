@@ -191,9 +191,9 @@ if __name__ == '__main__':
 
     match args.schedule:
         case 1:  # decay by 1/2.5
-            MAX_EPOCH = 200
+            MAX_EPOCH = 150
             scheduler = optim.lr_scheduler.MultiStepLR(
-                optimizer, milestones=[30, 60, 90, 120, 150, 180], gamma=0.4)
+                optimizer, milestones=[30, 60, 90, 110, 130], gamma=0.4)
 
         case 2:  # decay by 1/5
             MAX_EPOCH = 200
