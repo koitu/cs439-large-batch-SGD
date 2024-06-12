@@ -9,7 +9,7 @@ import torch.optim as optim
 
 from torch.utils.tensorboard import SummaryWriter
 
-import config
+# import config
 from models import get_model
 from utils import (
     get_training_dataloader,
@@ -25,6 +25,8 @@ def train(epoch):
 
     start = time.time()
     model.train()
+
+    train_loss = 0.0
     for batch_index, (images, labels) in enumerate(cifar100_training_loader):
 
         images = images.to(device)
@@ -55,15 +57,17 @@ def train(epoch):
         ))
 
         # update training loss for each iteration
-        writer.add_scalar('Train/loss', loss.item(), n_iter)
+        writer.add_scalar('Train/Loss per Iteration', loss.item(), n_iter)
+        train_loss += loss.item()
 
         if epoch <= args.warmup:
             warmup_scheduler.step()
 
-    for name, param in model.named_parameters():
-        layer, attr = os.path.splitext(name)
-        attr = attr[1:]
-        writer.add_histogram("{}/{}".format(layer, attr), param, epoch)
+    # for name, param in model.named_parameters():
+    #     layer, attr = os.path.splitext(name)
+    #     attr = attr[1:]
+    #     writer.add_histogram("{}/{}".format(layer, attr), param, epoch)
+    writer.add_scalar('Train/Average Loss per Epoch', train_loss / len(cifar100_training_loader), epoch)
 
     finish = time.time()
 
@@ -137,6 +141,8 @@ if __name__ == '__main__':
                         default=0.9, type=float, help='momentum (default: 0.9)')
     parser.add_argument('--wd', '--weight-decay',
                         default=5e-4, type=float, help='weight decay (default: 5e-4)')
+    parser.add_argument('-s', '--schedule',
+                        default=1, type=int, help='learning rate decay (default: 1)')
     parser.add_argument('--seed',
                         default=None, type=int, help='seed for initializing training')
     # parser.add_argument('-r', '--resume',
@@ -156,15 +162,17 @@ if __name__ == '__main__':
     model = model.to(device)
 
     # data preprocessing
+    cifar100_stats = ([0.5071, 0.4867, 0.4408], [0.2675, 0.2565, 0.2761])
+
     cifar100_training_loader = get_training_dataloader(
-        *config.CIFAR100_STATS,
+        *cifar100_stats,
         num_workers=args.workers,
         batch_size=args.batch_size,
         shuffle=True
     )
 
     cifar100_test_loader = get_test_dataloader(
-        *config.CIFAR100_STATS,
+        *cifar100_stats,
         num_workers=args.workers,
         batch_size=args.batch_size,
         shuffle=True
@@ -181,8 +189,41 @@ if __name__ == '__main__':
         momentum=args.momentum,
         weight_decay=args.wd)
 
-    scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=config.MILESTONES, gamma=0.2)
-    # scheduler = optim.lr_scheduler.PolynomialLR(optimizer, total_iters=config.EPOCH, power=1.0)  # TODO: set total_iters to the number of epochs
+    match args.schedule:
+        case 1:  # decay by 1/2.5
+            MAX_EPOCH = 200
+            scheduler = optim.lr_scheduler.MultiStepLR(
+                optimizer, milestones=[30, 60, 90, 120, 150, 180], gamma=0.4)
+
+        case 2:  # decay by 1/5
+            MAX_EPOCH = 200
+            scheduler = optim.lr_scheduler.MultiStepLR(
+                optimizer, milestones=[60, 120, 160], gamma=0.2)
+
+        case 3:  # decay by 1/10
+            MAX_EPOCH = 300
+            scheduler = optim.lr_scheduler.MultiStepLR(
+                optimizer, milestones=[150, 225], gamma=0.1)
+
+        case 4:  # linear decay
+            MAX_EPOCH = 200
+            scheduler = optim.lr_scheduler.PolynomialLR(
+                optimizer, total_iters=MAX_EPOCH, power=1.0)
+
+        # case 5:  # exp decay
+        #     MAX_EPOCH = ???
+        #     scheduler = optim.lr_scheduler.ExponentialLR(
+        #         optimizer, ???)
+        #
+        # case 6:  # cosine warm restart
+        #     MAX_EPOCH = ???
+        #     scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
+        #         optimizer, ???)
+
+        case _:
+            print("Invalid scheduler")
+            sys.exit(1)
+
 
     iter_per_epoch = len(cifar100_training_loader)
     warmup_scheduler = WarmUpLR(optimizer, iter_per_epoch * args.warmup)
@@ -193,8 +234,8 @@ if __name__ == '__main__':
         # writer = SummaryWriter(log_dir=str(os.path.join(config.LOG_DIR, args.arch, config.TIME_NOW)))
 
     else:
-        checkpoint_path = str(os.path.join(config.CHECKPOINT_DIR, args.arch, args.name))
-        writer = SummaryWriter(log_dir=str(os.path.join(config.LOG_DIR, args.arch, args.name)))
+        checkpoint_path = str(os.path.join('checkpoint', args.arch, args.name))
+        writer = SummaryWriter(log_dir=str(os.path.join('logs', args.arch, args.name)))
 
     # create a new tensorboard log file
     input_tensor = torch.Tensor(1, 3, 32, 32).to(device)
@@ -229,28 +270,35 @@ if __name__ == '__main__':
     #     resume_epoch = last_epoch(checkpoint_path)
 
     # start training
-    for epoch in range(1, config.EPOCH + 1):
+    for epoch in range(1, MAX_EPOCH + 1):
         if epoch > args.warmup:
             scheduler.step(epoch)
 
-        # if args.resume:
-        #     if epoch <= resume_epoch:
-        #         continue
-
         train(epoch)
-        acc = eval_training(epoch)
+        eval_training(epoch)
 
-        # start to save the best performing model after learning rate decays to 0.01
-        if epoch > config.MILESTONES[1] and best_acc < acc:
-            weights_path = checkpoint_path.format(arch=args.arch, epoch=epoch, type='best')
-            print('saving weights file to {}'.format(weights_path))
-            torch.save(model.state_dict(), weights_path)
-            best_acc = acc
-            continue
-
-        if not epoch % config.SAVE_EPOCH:
-            weights_path = checkpoint_path.format(arch=args.arch, epoch=epoch, type='regular')
-            print('saving weights file to {}'.format(weights_path))
-            torch.save(model.state_dict(), weights_path)
+    # for epoch in range(1, config.EPOCH + 1):
+    #     if epoch > args.warmup:
+    #         scheduler.step(epoch)
+    #
+    #     # if args.resume:
+    #     #     if epoch <= resume_epoch:
+    #     #         continue
+    #
+    #     train(epoch)
+    #     acc = eval_training(epoch)
+    #
+    #     # start to save the best performing model after learning rate decays to 0.01
+    #     if epoch > config.MILESTONES[1] and best_acc < acc:
+    #         weights_path = checkpoint_path.format(arch=args.arch, epoch=epoch, type='best')
+    #         print('saving weights file to {}'.format(weights_path))
+    #         torch.save(model.state_dict(), weights_path)
+    #         best_acc = acc
+    #         continue
+    #
+    #     if not epoch % config.SAVE_EPOCH:
+    #         weights_path = checkpoint_path.format(arch=args.arch, epoch=epoch, type='regular')
+    #         print('saving weights file to {}'.format(weights_path))
+    #         torch.save(model.state_dict(), weights_path)
 
     writer.close()
