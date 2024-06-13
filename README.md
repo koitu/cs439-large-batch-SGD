@@ -1,4 +1,9 @@
 # Experiments with Large Mini-batch SGD
+To get plots for the runs we did run the command below and visit [here](http://localhost:6006)
+```
+$ tensorboard --logdir='eval' --port=6006 --host='localhost'
+```
+
 ```
 torch
 torchvision
