@@ -1,4 +1,6 @@
 """
+https://github.com/weiaicunzai/pytorch-cifar100/blob/master/models/resnet.py
+
 Deep Residual Learning for Image Recognition
 https://arxiv.org/abs/1512.03385v1
 """

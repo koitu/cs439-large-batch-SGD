@@ -1,4 +1,6 @@
 """
+https://github.com/weiaicunzai/pytorch-cifar100/blob/master/models/vgg.py
+
 Very Deep Convolutional Networks for Large-Scale Image Recognition.
 https://arxiv.org/abs/1409.1556v6
 """
